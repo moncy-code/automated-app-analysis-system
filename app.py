@@ -905,13 +905,61 @@ elif menu == "Summary":
     # -----------------------------------------------------------
     st.markdown("### 📊 Dashboard Statistics")
 
+    # Clean installs for calculation
+    try:
+        apps_display["Installs_num"] = (
+            apps_display["Installs"]
+            .astype(str)
+            .str.replace(",", "", regex=False)
+            .str.extract(r"(\d+)")[0]
+            .astype(float)
+        )
+    except Exception:
+        apps_display["Installs_num"] = 0
+
+    total_apps = apps_display["App Name"].nunique()
+    avg_rating_summary = apps_display["Average Rating"].mean()
+    median_installs_summary = apps_display["Installs_num"].median()
+
     c1, c2, c3 = st.columns(3)
+
     with c1:
-        st.metric("Total Apps Analyzed", f"{len(apps):,}")
+        st.metric("Total Apps Analysed", f"{total_apps:,}")
+
     with c2:
-        st.metric("Average App Rating", f"{apps['Average Rating'].mean():.2f} ⭐")
+        st.metric("Average App Rating", f"{avg_rating_summary:.2f} ⭐")
+
     with c3:
-        st.metric("Total ADHD Reviews", "18")
+        st.metric("Median Installs", f"{median_installs_summary:,.0f}")
+
+    # -----------------------------------------------------------
+    # 🔍 App Drill-Down
+    # -----------------------------------------------------------
+    st.markdown("### 🔍 App Drill-Down")
+
+    selected_app = st.selectbox(
+        "Select an app to view details",
+        sorted(apps_display["App Name"].dropna().unique())
+    )
+
+    selected_app_data = apps_display[apps_display["App Name"] == selected_app]
+
+    if not selected_app_data.empty:
+        app_row = selected_app_data.iloc[0]
+
+        d1, d2, d3 = st.columns(3)
+
+        with d1:
+            st.metric("Rating", f"{app_row['Average Rating']:.2f} ⭐")
+
+        with d2:
+            st.metric("Installs", f"{app_row['Installs']}")
+
+        with d3:
+            st.metric("Platform", f"{app_row['Platform']}")
+
+        st.markdown("#### App Details")
+        st.dataframe(selected_app_data, use_container_width=True)
 
     # -----------------------------------------------------------
     # 💡 Strategic Recommendations
