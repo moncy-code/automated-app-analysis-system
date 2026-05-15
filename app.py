@@ -861,6 +861,9 @@ elif menu == "ADHD Analysis":
 # -----------------------------------------------------------
 # SUMMARY PAGE – Executive Insights
 # -----------------------------------------------------------
+# Count ADHD reviews for Summary page
+
+
 elif menu == "Summary":
     st.title("📘 Summary – Focus Bear Competitive Intelligence Insights")
 
@@ -903,23 +906,46 @@ elif menu == "Summary":
     # -----------------------------------------------------------
     # 🔍 Quick Stats
     # -----------------------------------------------------------
+    REVIEWS_PATH = CURATED_DIR / "reviews.csv"
+    adhd_review_count = 0
+
+    if os.path.exists(REVIEWS_PATH):
+        try:
+            reviews_temp = pd.read_csv(REVIEWS_PATH)
+            reviews_temp.columns = [c.strip().lower() for c in reviews_temp.columns]
+
+            if "special_reviews" in reviews_temp.columns:
+                adhd_review_count = len(
+                    reviews_temp[reviews_temp["special_reviews"] == True]
+                )
+        except Exception:
+            adhd_review_count = 0
+    
     st.markdown("### 📊 Dashboard Statistics")
 
     # Clean installs for calculation
-    try:
-        apps_display["Installs_num"] = (
-            apps_display["Installs"]
-            .astype(str)
-            .str.replace(",", "", regex=False)
-            .str.extract(r"(\d+)")[0]
-            .astype(float)
-        )
-    except Exception:
-        apps_display["Installs_num"] = 0
+    def clean_installs(value):
+        value = str(value).replace(",", "").strip().upper()
+
+        try:
+            if "M" in value:
+                return float(value.replace("M", "").replace("+", "")) * 1_000_000
+            elif "K" in value:
+                return float(value.replace("K", "").replace("+", "")) * 1_000
+            elif "B" in value:
+                return float(value.replace("B", "").replace("+", "")) * 1_000_000_000
+            else:
+                numbers = ''.join(c for c in value if c.isdigit())
+                return float(numbers) if numbers else 0
+        except:
+            return 0
+
+    apps_display["Installs_num"] = apps_display["Installs"].apply(clean_installs)
 
     total_apps = apps_display["App Name"].nunique()
     avg_rating_summary = apps_display["Average Rating"].mean()
-    median_installs_summary = apps_display["Installs_num"].median()
+    non_zero_installs = apps_display[apps_display["Installs_num"] > 0]["Installs_num"]
+    median_installs_summary = non_zero_installs.median() if not non_zero_installs.empty else 0
 
     c1, c2, c3 = st.columns(3)
 
@@ -930,7 +956,23 @@ elif menu == "Summary":
         st.metric("Average App Rating", f"{avg_rating_summary:.2f} ⭐")
 
     with c3:
-        st.metric("Median Installs", f"{median_installs_summary:,.0f}")
+        st.metric("Total ADHD Reviews", f"{adhd_review_count:,}")
+
+
+ # -----------------------------------------------------------
+    # 🔍 Top Rated Competitor apps
+    # -----------------------------------------------------------
+    st.markdown("### ⭐ Top Rated Competitor Apps")
+
+    top_apps = apps_display.sort_values(
+        by="Average Rating",
+        ascending=False
+    ).head(10)
+
+    st.dataframe(
+        top_apps[["App Name", "Average Rating", "Platform", "Genre"]],
+        use_container_width=True
+    )
 
     # -----------------------------------------------------------
     # 🔍 App Drill-Down
@@ -960,6 +1002,51 @@ elif menu == "Summary":
 
         st.markdown("#### App Details")
         st.dataframe(selected_app_data, use_container_width=True)
+
+    
+    # -----------------------------------------------------------
+    # 🧩 Platform Split
+    # -----------------------------------------------------------
+    st.markdown("### 🧩 Platform Split Analysis")
+
+    # Clean platform names
+    platform_clean = apps_display.copy()
+    platform_clean["Platform"] = platform_clean["Platform"].replace({
+        "playstore": "Play Store",
+        "appstore": "App Store",
+        "ios": "App Store",
+        "chromews": "Web/Chrome",
+        "web": "Web/Chrome"
+    })
+
+    # Platform summary
+    platform_summary = platform_clean.groupby("Platform").agg(
+        Number_of_Apps=("App Name", "nunique"),
+        Average_Rating=("Average Rating", "mean")
+    ).reset_index()
+
+    platform_summary["Average_Rating"] = platform_summary["Average_Rating"].round(2)
+
+    st.dataframe(platform_summary, use_container_width=True)
+
+    fig_platform = px.bar(
+        platform_summary,
+        x="Platform",
+        y="Number_of_Apps",
+        text="Number_of_Apps",
+        color="Platform",
+        color_discrete_sequence=px.colors.sequential.Blues
+    )
+
+    fig_platform.update_layout(
+        plot_bgcolor="#111827",
+        paper_bgcolor="#111827",
+        font=dict(color="#E5E7EB"),
+        xaxis_title="Platform",
+        yaxis_title="Number of Apps"
+    )
+
+    st.plotly_chart(fig_platform, use_container_width=True)
 
     # -----------------------------------------------------------
     # 💡 Strategic Recommendations
