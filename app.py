@@ -959,94 +959,154 @@ elif menu == "Summary":
         st.metric("Total ADHD Reviews", f"{adhd_review_count:,}")
 
 
- # -----------------------------------------------------------
-    # 🔍 Top Rated Competitor apps
+
     # -----------------------------------------------------------
+    # ⭐ Top Rated Competitor Apps
+    # -----------------------------------------------------------
+    st.markdown("---")
     st.markdown("### ⭐ Top Rated Competitor Apps")
-
-    top_apps = apps_display.sort_values(
-        by="Average Rating",
-        ascending=False
-    ).head(10)
-
-    st.dataframe(
-        top_apps[["App Name", "Average Rating", "Platform", "Genre"]],
-        use_container_width=True
+    st.caption(
+        "This section highlights the highest-rated competitor apps "
+        "based on average rating, installs, and rating count."
     )
+
+    with st.container(border=True):
+
+        # Create clean copy
+        top_apps_display = apps_display.copy()
+
+        # Clean platform names
+        top_apps_display["Platform"] = top_apps_display["Platform"].replace({
+            "playstore": "Play Store",
+            "appstore": "App Store",
+            "ios": "App Store",
+            "chromews": "Web/Chrome",
+            "web": "Web/Chrome"
+        })
+
+        # Sort apps by rating and rating count
+        top_apps = top_apps_display.sort_values(
+            by=["Average Rating", "Rating Count"],
+            ascending=[False, False]
+        ).head(10)
+
+        # Display competitor table
+        st.dataframe(
+            top_apps[[
+                "App Name",
+                "Average Rating",
+                "Rating Count",
+                "Installs",
+                "Platform",
+                "Genre"
+            ]],
+            use_container_width=True
+        )
 
     # -----------------------------------------------------------
     # 🔍 App Drill-Down
     # -----------------------------------------------------------
-    st.markdown("### 🔍 App Drill-Down")
+    st.markdown("---")
+    st.markdown("### 🔍 Individual App Drill-Down")
+    st.caption("This section shows details only for the selected app.")
 
-    selected_app = st.selectbox(
-        "Select an app to view details",
-        sorted(apps_display["App Name"].dropna().unique())
-    )
+    with st.container(border=True):
 
-    selected_app_data = apps_display[apps_display["App Name"] == selected_app]
+        selected_app = st.selectbox(
+            "Select an app to view details",
+            sorted(apps_display["App Name"].dropna().unique())
+        )
 
-    if not selected_app_data.empty:
-        app_row = selected_app_data.iloc[0]
+        selected_app_data = apps_display[
+            apps_display["App Name"] == selected_app
+        ]
 
-        d1, d2, d3 = st.columns(3)
+        if not selected_app_data.empty:
 
-        with d1:
-            st.metric("Rating", f"{app_row['Average Rating']:.2f} ⭐")
+            app_row = selected_app_data.iloc[0]
 
-        with d2:
-            st.metric("Installs", f"{app_row['Installs']}")
+            d1, d2, d3 = st.columns(3)
 
-        with d3:
-            st.metric("Platform", f"{app_row['Platform']}")
+            with d1:
+                st.metric("Rating", f"{app_row['Average Rating']:.2f} ⭐")
 
-        st.markdown("#### App Details")
-        st.dataframe(selected_app_data, use_container_width=True)
+            with d2:
+                st.metric("Installs", f"{app_row['Installs']}")
 
-    
+            with d3:
+                st.metric("Platform", f"{app_row['Platform']}")
+
+            st.markdown("#### App Details")
+
+            st.dataframe(
+                selected_app_data,
+                use_container_width=True
+            )
+        
+   # -----------------------------------------------------------
+    # 🧩 Platform Split Analysis
     # -----------------------------------------------------------
-    # 🧩 Platform Split
-    # -----------------------------------------------------------
+    st.markdown("---")
     st.markdown("### 🧩 Platform Split Analysis")
-
-    # Clean platform names
-    platform_clean = apps_display.copy()
-    platform_clean["Platform"] = platform_clean["Platform"].replace({
-        "playstore": "Play Store",
-        "appstore": "App Store",
-        "ios": "App Store",
-        "chromews": "Web/Chrome",
-        "web": "Web/Chrome"
-    })
-
-    # Platform summary
-    platform_summary = platform_clean.groupby("Platform").agg(
-        Number_of_Apps=("App Name", "nunique"),
-        Average_Rating=("Average Rating", "mean")
-    ).reset_index()
-
-    platform_summary["Average_Rating"] = platform_summary["Average_Rating"].round(2)
-
-    st.dataframe(platform_summary, use_container_width=True)
-
-    fig_platform = px.bar(
-        platform_summary,
-        x="Platform",
-        y="Number_of_Apps",
-        text="Number_of_Apps",
-        color="Platform",
-        color_discrete_sequence=px.colors.sequential.Blues
+    st.caption(
+        "This section compares competitor apps across different platforms "
+        "including Play Store, App Store, and Web/Chrome."
     )
 
-    fig_platform.update_layout(
-        plot_bgcolor="#111827",
-        paper_bgcolor="#111827",
-        font=dict(color="#E5E7EB"),
-        xaxis_title="Platform",
-        yaxis_title="Number of Apps"
-    )
+    with st.container(border=True):
 
-    st.plotly_chart(fig_platform, use_container_width=True)
+        # Create clean copy
+        platform_clean = apps_display.copy()
+
+        # Clean platform names
+        platform_clean["Platform"] = platform_clean["Platform"].replace({
+            "playstore": "Play Store",
+            "appstore": "App Store",
+            "ios": "App Store",
+            "chromews": "Web/Chrome",
+            "web": "Web/Chrome"
+        })
+
+        # Platform summary statistics
+        platform_summary = platform_clean.groupby("Platform").agg(
+            Number_of_Apps=("App Name", "nunique"),
+            Average_Rating=("Average Rating", "mean")
+        ).reset_index()
+
+        platform_summary["Average_Rating"] = (
+            platform_summary["Average_Rating"].round(2)
+        )
+
+        st.markdown("#### 📊 Platform Summary")
+
+        st.dataframe(
+            platform_summary,
+            use_container_width=True
+        )
+
+        # Platform distribution chart
+        fig_platform = px.bar(
+            platform_summary,
+            x="Platform",
+            y="Number_of_Apps",
+            text="Number_of_Apps",
+            color="Platform",
+            color_discrete_sequence=px.colors.sequential.Blues
+        )
+
+        fig_platform.update_layout(
+            plot_bgcolor="#111827",
+            paper_bgcolor="#111827",
+            font=dict(color="#E5E7EB"),
+            xaxis_title="Platform",
+            yaxis_title="Number of Apps",
+            title="Platform Distribution of Competitor Apps"
+        )
+
+        st.plotly_chart(
+            fig_platform,
+            use_container_width=True
+        )
 
     # -----------------------------------------------------------
     # 💡 Strategic Recommendations
