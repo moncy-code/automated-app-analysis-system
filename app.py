@@ -966,8 +966,8 @@ elif menu == "Summary":
     st.markdown("---")
     st.markdown("### ⭐ Top Rated Competitor Apps")
     st.caption(
-        "This section highlights the highest-rated competitor apps "
-        "based on average rating, installs, and rating count."
+        "This section highlights highly rated competitor apps with at least 50 ratings. "
+        "For platforms where install data is unavailable, installs are estimated from rating count."
     )
 
     with st.container(border=True):
@@ -984,66 +984,129 @@ elif menu == "Summary":
             "web": "Web/Chrome"
         })
 
-        # Sort apps by rating and rating count
-        top_apps = top_apps_display.sort_values(
+        # Convert Rating Count to numeric safely
+        top_apps_display["Rating Count"] = pd.to_numeric(
+            top_apps_display["Rating Count"],
+            errors="coerce"
+        ).fillna(0)
+
+        # Convert Average Rating to numeric safely
+        top_apps_display["Average Rating"] = pd.to_numeric(
+            top_apps_display["Average Rating"],
+            errors="coerce"
+        ).fillna(0)
+
+        # Keep only apps with at least 50 ratings
+        top_apps = top_apps_display[
+            top_apps_display["Rating Count"] >= 50
+        ].copy()
+
+        # Sort by rating first, then rating count
+        top_apps = top_apps.sort_values(
             by=["Average Rating", "Rating Count"],
             ascending=[False, False]
         ).head(10)
 
-        # Display competitor table
-        st.dataframe(
-            top_apps[[
-                "App Name",
-                "Average Rating",
-                "Rating Count",
-                "Installs",
-                "Platform",
-                "Genre"
-            ]],
-            use_container_width=True
-        )
+        # Estimate installs where install data is missing or 0
+        def estimate_installs(row):
+            installs = row["Installs"]
+            rating_count = row["Rating Count"]
 
-    # -----------------------------------------------------------
-    # 🔍 App Drill-Down
-    # -----------------------------------------------------------
-    st.markdown("---")
-    st.markdown("### 🔍 Individual App Drill-Down")
-    st.caption("This section shows details only for the selected app.")
+            try:
+                installs_num = float(str(installs).replace(",", "").replace("+", ""))
+            except Exception:
+                installs_num = 0
 
-    with st.container(border=True):
+            try:
+                rating_count_num = float(rating_count)
+            except Exception:
+                rating_count_num = 0
 
-        selected_app = st.selectbox(
-            "Select an app to view details",
-            sorted(apps_display["App Name"].dropna().unique())
-        )
+            # If installs are missing/zero, estimate using rating count
+            # Heuristic: 1 rating ≈ 100 installs
+            if installs_num == 0 and rating_count_num > 0:
+                return f"{int(rating_count_num * 100):,}+"
 
-        selected_app_data = apps_display[
-            apps_display["App Name"] == selected_app
-        ]
+            return f"{int(installs_num):,}"
 
-        if not selected_app_data.empty:
+        top_apps["Installs"] = top_apps.apply(estimate_installs, axis=1)
 
-            app_row = selected_app_data.iloc[0]
-
-            d1, d2, d3 = st.columns(3)
-
-            with d1:
-                st.metric("Rating", f"{app_row['Average Rating']:.2f} ⭐")
-
-            with d2:
-                st.metric("Installs", f"{app_row['Installs']}")
-
-            with d3:
-                st.metric("Platform", f"{app_row['Platform']}")
-
-            st.markdown("#### App Details")
-
+        # Display table
+        if not top_apps.empty:
             st.dataframe(
-                selected_app_data,
+                top_apps[[
+                    "App Name",
+                    "Average Rating",
+                    "Rating Count",
+                    "Installs",
+                    "Platform",
+                    "Genre"
+                ]],
                 use_container_width=True
             )
+        else:
+            st.info("No apps found with at least 50 ratings.")
+        # -----------------------------------------------------------
+        # 🔍 App Drill-Down
+        # -----------------------------------------------------------
+        st.markdown("---")
+        st.markdown("### 🔍 Individual App Drill-Down")
+        st.caption("This section shows details only for the selected app.")
+
+        with st.container(border=True):
+
+            selected_app = st.selectbox(
+                "Select an app to view details",
+                sorted(apps_display["App Name"].dropna().unique())
+            )
+
+            selected_app_data = apps_display[
+                apps_display["App Name"] == selected_app
+            ]
+
+            if not selected_app_data.empty:
+
+                app_row = selected_app_data.iloc[0]
+
+                d1, d2, d3 = st.columns(3)
+
+                with d1:
+                    st.metric("Rating", f"{app_row['Average Rating']:.2f} ⭐")
+
+                with d2:
+                    # Estimate installs if missing
+                    installs_value = app_row["Installs"]
+                    rating_count_value = app_row["Rating Count"]
+
+                    try:
+                        installs_num = float(str(installs_value).replace(",", "").replace("+", ""))
+                    except:
+                        installs_num = 0
+
+                    try:
+                        rating_count_num = float(rating_count_value)
+                    except:
+                        rating_count_num = 0
+
+                    # If installs missing, estimate from rating count
+                    if installs_num == 0 and rating_count_num > 0:
+                        installs_display = f"{int(rating_count_num * 100):,}+"
+                    else:
+                        installs_display = f"{int(installs_num):,}"
+
+                    st.metric("Installs", installs_display)
+
+                with d3:
+                    st.metric("Platform", f"{app_row['Platform']}")
+
+                st.markdown("#### App Details")
+
+                st.dataframe(
+                    selected_app_data,
+                    use_container_width=True
+                )
         
-   # -----------------------------------------------------------
+    # -----------------------------------------------------------
     # 🧩 Platform Split Analysis
     # -----------------------------------------------------------
     st.markdown("---")
@@ -1091,7 +1154,11 @@ elif menu == "Summary":
             y="Number_of_Apps",
             text="Number_of_Apps",
             color="Platform",
-            color_discrete_sequence=px.colors.sequential.Blues
+            color_discrete_sequence=[
+            "#3B82F6",  # blue
+            "#10B981",  # green
+            "#F59E0B"   # amber
+             ]   
         )
 
         fig_platform.update_layout(
